@@ -1,6 +1,10 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"regexp"
+	"strings"
+)
 
 type ResourceData struct {
 	Meta struct {
@@ -143,4 +147,67 @@ func main() {
 	default:
 		fmt.Println("Unknown")
 	}
+
+	url := "http://hello.com/128/kr/"
+	temp := "http://///13/ljljl/sss/d/39a/a11/122pppppppppppppp/12"
+	match, _ := regexp.MatchString("/([0-9]+)/", url)
+	fmt.Println("regexp match:", match)
+
+	r := regexp.MustCompile("([0-9]+)")
+	fmt.Println(r.ReplaceAllString(url, "?"))
+	fmt.Println(r.FindAllString(temp, -1))
+
+	fmt.Println("Replace numbers to ? in url:", ReplaceNumbers(url))
+	fmt.Println("Replace numbers to ? in url:", ReplaceNumbers(temp))
+
+	// now := time.Now()
+	// for i := 0; i < 1000; i++ {
+	// 	ReplaceNumbers(temp)
+	// }
+	// then := time.Now()
+	// diff := then.Sub(now)
+	// fmt.Println("ReplaceNumbers 1000 times:", diff)
+
+	fmt.Println(temp, ReplaceNumbers(temp))
+
+	fmt.Println(IsNumber(""))
+
+	split_strings := strings.Split(temp, "/")
+	fmt.Println(strings.Join(split_strings, "/"))
+
+	fmt.Println("ReplaceNumbers():", ReplaceNumbers(""))
+
+}
+
+func ReplaceNumbers2(temp string) string {
+	r := regexp.MustCompile("/([0-9]+)/")
+	r1 := regexp.MustCompile("/([0-9]+)$")
+	return r1.ReplaceAllString(r.ReplaceAllString(temp, "/?/"), "/?")
+}
+
+func ReplaceNumbers(temp string) string {
+	if temp == "" {
+		return ""
+	}
+	var nums []string
+	for _, v := range strings.Split(temp, "/") {
+		if v != "" && IsNumber(v) {
+			nums = append(nums, "?")
+		} else {
+			nums = append(nums, v)
+		}
+	}
+	return strings.Join(nums, "/")
+}
+
+func IsNumber(num string) bool {
+	if num == "" {
+		return false
+	}
+	for _, v := range num {
+		if (v > '9') || (v < '0') {
+			return false
+		}
+	}
+	return true
 }

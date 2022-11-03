@@ -326,145 +326,18 @@ resource_ttfb_time
 */
 
 type ResourceMap struct {
-	mapType string //"r" resource, "p" pageLoad
 	sync.RWMutex
 	// request_host request_path type pCode page_path
 	items map[string]map[string]map[string]map[int64]map[string][]ResourceRespTime
 	stop  chan bool
 }
 
-func NewResourceMap(mapType string) *ResourceMap {
-	rsMap := new(ResourceMap)
-	rsMap.mapType = mapType
-	rsMap.stop = make(chan bool)
-	rsMap.SendTagCountGoFunc()
-	return rsMap
-}
-
-func (um *ResourceMap) GetStatsType() string {
-	return um.mapType
-}
-
 type ResourceRespTime struct {
-	Resource_connection_time int // -999 no value
-	Resource_dns_time        int // -999 no value
-	Resource_download_time   int // -999 no value
-	Resource_duration        int //
-	Resource_ttfb_time       int //
-}
-type ResourceTimeAvg struct {
-	cnt                      int
-	resource_connection_time float32
-	connect_cnt              int
-	resource_dns_time        float32
-	dns_cnt                  int
-	resource_download_time   float32
-	download_cnt             int
-	resource_duration        float32
-	resource_ttfb_time       float32
-}
-
-type ResourceTimeUrlAvg struct {
-	url string
-	avg ResourceTimeAvg
-}
-
-func (um *ResourceMap) SendTagCountGoFunc() {
-	fiveSecondsTicker := time.NewTicker(10 * time.Second)
-	now := time.Now().UTC()
-
-	// 9초, 4초
-	then := time.Date(now.Year(), now.Month(), now.Day(),
-		now.Hour(), now.Minute(), now.Second()+5-now.Second()%5+4, 0, time.UTC)
-	diff := then.Sub(now)
-	delay5s := time.NewTimer(diff)
-	go func() {
-		for {
-			select {
-			case <-delay5s.C:
-				fiveSecondsTicker.Reset(5 * time.Second)
-				delay5s.Stop()
-				um.SendResourceStatsTagCounter()
-				// um.RemoveAll()
-			case <-fiveSecondsTicker.C:
-				um.SendResourceStatsTagCounter()
-				// um.RemoveAll()
-			case <-um.stop:
-				return
-			}
-		}
-	}()
-}
-
-func (um *ResourceMap) SendResourceStatsTagCounter() {
-	statsType := um.GetStatsType()
-	switch statsType {
-	case "r":
-		um.SendResourceStats()
-	case "p":
-		um.SendPageLoadStats()
-	default:
-		fmt.Println("SendAjaxStatsTagCounter(): Unknown Stats Type:", statsType)
-	}
-}
-
-func (um *ResourceMap) SendResourceStats() {
-	fmt.Println("SendResourceStats-------------------------------------------")
-	if um.items != nil {
-		// request_host, request_path, ,rs_type, pCode, page_path
-		for request_host, v := range um.items {
-			for request_path, v1 := range v {
-				for rs_type, v2 := range v1 {
-					for pCode := range v2 {
-						pCodeSum := um.GetPcodeAvg(request_host, request_path, rs_type, pCode)
-						fmt.Println("resource RStats pCodeAvg:", request_host, request_path, rs_type, pCode)
-						fmt.Printf("%+v\n", pCodeSum)
-						urlAvgs := um.GetUrlAvgs(request_host, request_path, rs_type, pCode)
-						for i, urlavg := range urlAvgs {
-							fmt.Println("resource RStats urlAvgs:", i, request_host, request_path, rs_type, pCode)
-							fmt.Printf("%+v\n", urlavg)
-						}
-					}
-				}
-			}
-		}
-		fmt.Println("SendResourceStats Dump:", um.GetMapDump())
-		um.RemoveAll()
-		fmt.Println("SendResourceStats Dump after RemoveAll():", um.GetMapDump())
-	}
-}
-
-func (um *ResourceMap) SendPageLoadStats() {
-	fmt.Println("SendPageLoadStats-------------------------------------------")
-	if um.items != nil {
-		// request_host, request_path, ,rs_type, pCode, page_path
-		for request_host, v := range um.items {
-			for request_path, v1 := range v {
-				for rs_type, v2 := range v1 {
-					for pCode := range v2 {
-						pCodeSum := um.GetPcodeAvg(request_host, request_path, rs_type, pCode)
-						fmt.Println("PageLoad RStats pCodeAvg:", request_host, request_path, rs_type, pCode)
-						fmt.Printf("%+v\n", pCodeSum)
-						urlAvgs := um.GetUrlAvgs(request_host, request_path, rs_type, pCode)
-						for i, urlavg := range urlAvgs {
-							fmt.Println("PageLoad RStats urlAvgs:", i, request_host, request_path, rs_type, pCode)
-							fmt.Printf("%+v\n", urlavg)
-						}
-					}
-				}
-			}
-		}
-		fmt.Println("SendPageLoadStats Dump:", um.GetMapDump())
-		um.RemoveAll()
-		fmt.Println("SendPageLoadStats Dump after RemoveAll():", um.GetMapDump())
-	}
-}
-
-func (um *ResourceMap) GetMapDump() (strDump string) {
-	um.RLock()
-	defer um.RUnlock()
-	strDump = fmt.Sprintf("%+v", um.items)
-	return strDump
+	Resource_connection_time float32
+	Resource_dns_time        float32
+	Resource_download_time   float32
+	Resource_duration        float32
+	Resource_ttfb_time       float32
 }
 
 func (um *ResourceMap) Add(request_host, request_path, rs_type string, pCode int64, page_path string, rsRespTime ResourceRespTime) {
@@ -488,96 +361,7 @@ func (um *ResourceMap) Add(request_host, request_path, rs_type string, pCode int
 	if um.items[request_host][request_path][rs_type][pCode][page_path] == nil {
 		um.items[request_host][request_path][rs_type][pCode][page_path] = make([]ResourceRespTime, 0, 10)
 	}
-	um.items[request_host][request_path][rs_type][pCode][page_path] =
-		append(um.items[request_host][request_path][rs_type][pCode][page_path], rsRespTime)
-}
-
-func (um *ResourceMap) GetPcodeAvg(request_host, request_path, rs_type string, pCode int64) (avg ResourceTimeAvg) {
-	um.RLock()
-	defer um.RUnlock()
-	avg = ResourceTimeAvg{0, 0, 0, 0, 0, 0, 0, 0, 0}
-
-	if um.items != nil {
-		for _, rsTimes := range um.items[request_host][request_path][rs_type][pCode] {
-			for _, rsTime := range rsTimes {
-				avg.cnt++
-				avg.resource_duration += float32(rsTime.Resource_duration)
-				avg.resource_ttfb_time += float32(rsTime.Resource_ttfb_time)
-
-				if rsTime.Resource_connection_time != -999 {
-					avg.connect_cnt++
-					avg.resource_connection_time += float32(rsTime.Resource_connection_time)
-				}
-				if rsTime.Resource_dns_time != -999 {
-					avg.dns_cnt++
-					avg.resource_dns_time += float32(rsTime.Resource_dns_time)
-				}
-				if rsTime.Resource_download_time != -999 {
-					avg.download_cnt++
-					avg.resource_download_time += float32(rsTime.Resource_download_time)
-				}
-			}
-		}
-
-		if avg.cnt != 0 {
-			avg.resource_duration /= float32(avg.cnt)
-			avg.resource_ttfb_time /= float32(avg.cnt)
-			if avg.connect_cnt != 0 {
-				avg.resource_connection_time /= float32(avg.connect_cnt)
-			}
-			if avg.dns_cnt != 0 {
-				avg.resource_dns_time /= float32(avg.dns_cnt)
-			}
-			if avg.download_cnt != 0 {
-				avg.resource_download_time /= float32(avg.download_cnt)
-			}
-		}
-	}
-	return avg
-}
-
-func (um *ResourceMap) GetUrlAvgs(request_host, request_path, rs_type string, pCode int64) (avgs []ResourceTimeUrlAvg) {
-	um.RLock()
-	defer um.RUnlock()
-
-	if um.items != nil {
-		for url, rsTimes := range um.items[request_host][request_path][rs_type][pCode] {
-			avg := ResourceTimeAvg{0, 0, 0, 0, 0, 0, 0, 0, 0}
-			for _, rsTime := range rsTimes {
-				avg.cnt++
-				avg.resource_duration += float32(rsTime.Resource_duration)
-				avg.resource_ttfb_time += float32(rsTime.Resource_ttfb_time)
-
-				if rsTime.Resource_connection_time != -999 {
-					avg.connect_cnt++
-					avg.resource_connection_time += float32(rsTime.Resource_connection_time)
-				}
-				if rsTime.Resource_dns_time != -999 {
-					avg.dns_cnt++
-					avg.resource_dns_time += float32(rsTime.Resource_dns_time)
-				}
-				if rsTime.Resource_download_time != -999 {
-					avg.download_cnt++
-					avg.resource_download_time += float32(rsTime.Resource_download_time)
-				}
-			}
-			if avg.cnt != 0 {
-				avg.resource_duration /= float32(avg.cnt)
-				avg.resource_ttfb_time /= float32(avg.cnt)
-				if avg.connect_cnt != 0 {
-					avg.resource_connection_time /= float32(avg.connect_cnt)
-				}
-				if avg.dns_cnt != 0 {
-					avg.resource_dns_time /= float32(avg.dns_cnt)
-				}
-				if avg.download_cnt != 0 {
-					avg.resource_download_time /= float32(avg.download_cnt)
-				}
-				avgs = append(avgs, ResourceTimeUrlAvg{url, avg})
-			}
-		}
-	}
-	return avgs
+	um.items[request_host][request_path][rs_type][pCode][page_path] = append(um.items[request_host][request_path][rs_type][pCode][page_path], rsRespTime)
 }
 
 func (um *ResourceMap) RemoveAll() {

@@ -274,9 +274,6 @@ var rChangeMap *ds.RouteChangeMap
 var ajaxRMap *ds.AJAXMap
 var ajaxPMap *ds.AJAXMap
 
-var rsRMap *ds.ResourceMap
-var plRMap *ds.ResourceMap
-
 func main() {
 
 	r := gin.Default()
@@ -298,11 +295,6 @@ func main() {
 	defer ajaxRMap.CloseMap()
 	ajaxPMap = ds.NewAJAXMap("p")
 	defer ajaxPMap.CloseMap()
-
-	rsRMap = ds.NewResourceMap("r")
-	defer rsRMap.CloseMap()
-	plRMap = ds.NewResourceMap("p")
-	defer plRMap.CloseMap()
 
 	v1 := r.Group("/")
 	{
@@ -336,15 +328,6 @@ func pageLoad(c *gin.Context) {
 			ajaxPMap.Add(v.URLHost, v.URLPath, int64(pg.Meta.PCode), pg.Meta.Path,
 				ds.AJAXStatus{Status: v.ResourceInfo.Status, Ajax_duration: float32(v.Timing.Duration)})
 		}
-
-		respTime := ds.ResourceRespTime{Resource_connection_time: v.Timing.Connect.Duration,
-			Resource_dns_time:      v.Timing.DNS.Duration,
-			Resource_download_time: v.Timing.Download.Duration,
-			Resource_duration:      v.Timing.Duration,
-			Resource_ttfb_time:     v.Timing.FirstByte.Duration}
-
-		plRMap.Add(v.URLHost, v.URLPath, v.Type,
-			int64(pg.Meta.PCode), pg.Meta.Path, respTime)
 	}
 
 	pgMap.Add(int64(pg.Meta.PCode), pg)
@@ -379,15 +362,6 @@ func resource(c *gin.Context) {
 			ajaxRMap.Add(v.URLHost, v.URLPath, int64(rs.Meta.PCode), rs.Meta.Path,
 				ds.AJAXStatus{Status: v.ResourceInfo.Status, Ajax_duration: float32(v.Timing.Duration)})
 		}
-
-		respTime := ds.ResourceRespTime{Resource_connection_time: v.Timing.Connect.Duration,
-			Resource_dns_time:      v.Timing.DNS.Duration,
-			Resource_download_time: v.Timing.Download.Duration,
-			Resource_duration:      v.Timing.Duration,
-			Resource_ttfb_time:     v.Timing.FirstByte.Duration}
-
-		rsRMap.Add(v.URLHost, v.URLPath, v.Type,
-			int64(rs.Meta.PCode), rs.Meta.Path, respTime)
 	}
 
 	// fmt.Printf("resource: %+v\n", rs)

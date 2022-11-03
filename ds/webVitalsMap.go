@@ -35,7 +35,7 @@ type WebVitalsData struct {
 
 type WebVitalsMap struct {
 	sync.RWMutex
-	items map[int64]map[string][]WebVitalsRespTime
+	items map[int64]map[string][]WebVitalsRespTimes
 	stop  chan bool
 }
 
@@ -54,12 +54,17 @@ func (um *WebVitalsMap) SendWebVitalsTagCountGoFunc() {
 		for {
 			select {
 			case <-delay5s.C:
+
 				fiveSecondsTicker.Reset(5 * time.Second)
 				delay5s.Stop()
-				um.SendWebVitalsStats()
+				fmt.Println("delay5s.C:", time.Now().UTC())
+				// um.Lock()
+
+				// mapHitMapRumPack = make(map[int64]*pack.HitMapRumPack)
+				// um.Unlock()
 			case <-fiveSecondsTicker.C:
-				// fmt.Println(time.Now().UTC())
-				um.SendWebVitalsStats()
+				fmt.Println(time.Now().UTC())
+
 			case <-um.stop:
 				fmt.Println("stop: <-um.Stop", <-um.stop)
 				return
@@ -67,24 +72,6 @@ func (um *WebVitalsMap) SendWebVitalsTagCountGoFunc() {
 		}
 	}()
 
-}
-
-func (um *WebVitalsMap) SendWebVitalsStats() {
-	fmt.Println("SendWebVitalsStats-------------------------------------------")
-	if um.items != nil {
-		// request_host, request_path, ,rs_type, pCode, page_path
-		for pCode := range um.items {
-			pCodeAvg := um.GetPcodeAvg(pCode)
-			fmt.Printf("SendWebVitalsStats pCodeAvg: %d %+v\n", pCode, pCodeAvg)
-			urlAvgs := um.GetUrlAvgs(pCode)
-			for _, urlavg := range urlAvgs {
-				fmt.Printf("SendWebVitalsStats urlavg: %d %+v\n", pCode, urlavg)
-			}
-		}
-		fmt.Println("SendResourceStats Dump:", um.GetMapDump())
-		um.RemoveAll()
-		fmt.Println("SendResourceStats Dump after RemoveAll():", um.GetMapDump())
-	}
 }
 
 func (um *WebVitalsMap) CloseMap() {
@@ -110,121 +97,96 @@ func NewWebVitalsMap() *WebVitalsMap {
 }
 
 type WebVitalsMapAvg struct {
-	url string
-	avg WebVitalsTimeAvg
+	url   string
+	count int
+	avg   WebVitalsRespTimes
 }
 
-type WebVitalsRespTime struct {
+type WebVitalsRespTimes struct {
 	cls float32
 	fid float32
 	lcp float32
 }
 
-type WebVitalsTimeAvg struct {
-	cls     float32
-	cls_cnt int
-	fid     float32
-	fid_cnt int
-	lcp     float32
-	lcp_cnt int
-}
-
-func (um *WebVitalsMap) MakeWebVitalsRespTimes(cls float64, fid, lcp int) (aaa WebVitalsRespTime) {
+func (um *WebVitalsMap) MakeWebVitalsRespTimes(cls float64, fid, lcp int) (aaa WebVitalsRespTimes) {
 	aaa.cls = float32(cls)
 	aaa.fid = float32(fid)
 	aaa.lcp = float32(lcp)
 	return aaa
 }
 
-func (um *WebVitalsMap) Add(pCode int64, url string, wVRespTime WebVitalsRespTime) {
+func (um *WebVitalsMap) Sum(WebVitalsRespTimes []WebVitalsRespTimes) (total WebVitalsRespTimes) {
+	for _, v := range WebVitalsRespTimes {
+		total.fid += v.fid
+		total.lcp += v.lcp
+		total.cls += v.cls
+	}
+	return total
+}
+
+func (um *WebVitalsMap) Avg(WebVitalsRespTimes []WebVitalsRespTimes) (urlRespAvg WebVitalsRespTimes) {
+	length := len(WebVitalsRespTimes)
+	if length != 0 {
+		urlRespAvg = um.Sum(WebVitalsRespTimes)
+		urlRespAvg.fid = urlRespAvg.fid / float32(length)
+		urlRespAvg.lcp = urlRespAvg.lcp / float32(length)
+		urlRespAvg.cls = urlRespAvg.cls / float32(length)
+	}
+	return urlRespAvg
+}
+
+func (um *WebVitalsMap) Add(pCode int64, url string, wVRespTimes WebVitalsRespTimes) {
 	um.Lock()
 	defer um.Unlock()
 
 	if um.items == nil {
 		// fmt.Println("um.items == nil")
-		um.items = make(map[int64]map[string][]WebVitalsRespTime, 10)
+		um.items = make(map[int64]map[string][]WebVitalsRespTimes, 10)
 	}
 	if um.items[pCode] == nil {
 		// fmt.Println("um.items[pCode] == nil")
-		um.items[pCode] = make(map[string][]WebVitalsRespTime, 10)
+		um.items[pCode] = make(map[string][]WebVitalsRespTimes, 10)
 	}
 	if um.items[pCode][url] == nil {
 		// fmt.Println("um.items[pCode][url] == nil")
-		um.items[pCode][url] = make([]WebVitalsRespTime, 0, 10)
+		um.items[pCode][url] = make([]WebVitalsRespTimes, 0, 10)
 	}
-	um.items[pCode][url] = append(um.items[pCode][url], wVRespTime)
+	um.items[pCode][url] = append(um.items[pCode][url], wVRespTimes)
 }
 
-func (um *WebVitalsMap) GetPcodeAvg(pCode int64) WebVitalsTimeAvg {
+func (um *WebVitalsMap) GetUrlAvgs(pCode int64) (webVitalsMapAvg []WebVitalsMapAvg) {
 	um.RLock()
 	defer um.RUnlock()
-	avg := WebVitalsTimeAvg{0, 0, 0, 0, 0, 0}
-
-	if um.items != nil {
-		for _, wvTimes := range um.items[pCode] {
-			for _, wvTime := range wvTimes {
-				if wvTime.cls != -1 {
-					avg.cls_cnt++
-					avg.cls += wvTime.cls
-				}
-				if wvTime.fid != -1 {
-					avg.fid_cnt++
-					avg.fid += wvTime.fid
-				}
-				if wvTime.lcp != -1 {
-					avg.lcp_cnt++
-					avg.lcp += wvTime.lcp
-				}
-			}
-		}
-		if avg.cls != 0 {
-			avg.cls /= float32(avg.cls_cnt)
-		}
-		if avg.fid != 0 {
-			avg.fid /= float32(avg.fid_cnt)
-		}
-		if avg.lcp != 0 {
-			avg.lcp /= float32(avg.lcp_cnt)
+	// urlavgs := []UrlAvg{}
+	_, pexists := um.items[pCode]
+	if pexists {
+		for k, v := range um.items[pCode] {
+			webVitalsMapAvg = append(webVitalsMapAvg, WebVitalsMapAvg{k, len(v), um.Avg(v)})
 		}
 	}
-
-	return avg
+	return webVitalsMapAvg
 }
 
-func (um *WebVitalsMap) GetUrlAvgs(pCode int64) (avgs []WebVitalsMapAvg) {
+func (um *WebVitalsMap) GetPcodeAvg(pCode int64) (int, WebVitalsRespTimes) {
 	um.RLock()
 	defer um.RUnlock()
-
-	if um.items != nil {
-		for url, wvTimes := range um.items[pCode] {
-			avg := WebVitalsTimeAvg{0, 0, 0, 0, 0, 0}
-			for _, wvTime := range wvTimes {
-				if wvTime.cls != -1 {
-					avg.cls_cnt++
-					avg.cls += wvTime.cls
-				}
-				if wvTime.fid != -1 {
-					avg.fid_cnt++
-					avg.fid += wvTime.fid
-				}
-				if wvTime.lcp != -1 {
-					avg.lcp_cnt++
-					avg.lcp += wvTime.lcp
-				}
-			}
-			if avg.cls != 0 {
-				avg.cls /= float32(avg.cls_cnt)
-			}
-			if avg.fid != 0 {
-				avg.fid /= float32(avg.fid_cnt)
-			}
-			if avg.lcp != 0 {
-				avg.lcp /= float32(avg.lcp_cnt)
-			}
-			avgs = append(avgs, WebVitalsMapAvg{url, avg})
+	count := 0
+	avg := WebVitalsRespTimes{0, 0, 0}
+	var sums []WebVitalsRespTimes
+	_, pexists := um.items[pCode]
+	if pexists {
+		for _, v := range um.items[pCode] {
+			sums = append(sums, um.Sum(v))
+			count += len(v)
+		}
+		if count != 0 {
+			avg = um.Sum(sums)
+			avg.fid = avg.fid / float32(count)
+			avg.lcp = avg.lcp / float32(count)
+			avg.cls = avg.cls / float32(count)
 		}
 	}
-	return avgs
+	return count, avg
 }
 
 func (um *WebVitalsMap) Remove(pCode int64) {
@@ -240,12 +202,6 @@ func (um *WebVitalsMap) Remove(pCode int64) {
 		}
 		delete(um.items, pCode)
 	}
-}
-
-func (um *WebVitalsMap) RemoveAll() {
-	um.Lock()
-	defer um.Unlock()
-	um.items = make(map[int64]map[string][]WebVitalsRespTime, 10)
 }
 
 func (um *WebVitalsMap) GetMapDump() (strDump string) {

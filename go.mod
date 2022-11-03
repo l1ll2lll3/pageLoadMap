@@ -4,8 +4,14 @@ go 1.18
 
 require github.com/gin-gonic/gin v1.8.1
 
-require github.com/ua-parser/uap-go v0.0.0-20211112212520-00c877edfe0f // indirect
+<<<<<<< HEAD
+require (
+	github.com/DataDog/hyperloglog v0.0.0-20220804205443-1806d9b66146 // indirect
+	github.com/ua-parser/uap-go v0.0.0-20211112212520-00c877edfe0f // indirect
+)
 
+=======
+>>>>>>> parent of cc89318 (uagent test)
 require (
 	github.com/gin-contrib/sse v0.1.0 // indirect
 	github.com/go-playground/locales v0.14.0 // indirect
@@ -15,7 +21,7 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/leodido/go-urn v1.2.1 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect
-	// github.com/mileusna/useragent v1.2.0 // indirect
+	github.com/mileusna/useragent v1.2.0 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180228061459-e0a39a4cb421 // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
@@ -28,7 +34,3 @@ require (
 	google.golang.org/protobuf v1.28.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
-
-// replace (
-// 	github.com/mileusna/useragent v0.0.0 => ./useragent
-// )

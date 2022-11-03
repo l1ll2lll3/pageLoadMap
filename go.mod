@@ -4,11 +4,7 @@ go 1.18
 
 require github.com/gin-gonic/gin v1.8.1
 
-<<<<<<< HEAD
-require (
-	github.com/DataDog/hyperloglog v0.0.0-20220804205443-1806d9b66146 // indirect
-	github.com/ua-parser/uap-go v0.0.0-20211112212520-00c877edfe0f // indirect
-)
+require github.com/ua-parser/uap-go v0.0.0-20211112212520-00c877edfe0f // indirect
 
 =======
 >>>>>>> parent of cc89318 (uagent test)

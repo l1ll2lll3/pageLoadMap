@@ -16,6 +16,7 @@ type PageLoadData struct {
 		PageLocation     string `json:"pageLocation"`
 		Host             string `json:"host"`
 		Path             string `json:"path"`
+		AutomatedPath    string `json:"automatedPath"`
 		Query            string `json:"query"`
 		Protocol         string `json:"protocol"`
 		PageTitle        string `json:"pageTitle"`
@@ -140,7 +141,7 @@ type PageLoadData struct {
 }
 
 func main() {
-	dat, err := os.ReadFile("./pageLoad.dat")
+	dat, err := os.ReadFile("./resource.dat")
 	if err == nil {
 		fmt.Println(string(dat))
 		fmt.Println("length of dat:", len(dat))
